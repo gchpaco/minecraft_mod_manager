@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 var listenPort = flag.Int64("port", 8080, "port to listen on")
@@ -29,17 +30,49 @@ type modList struct {
 
 func updateMod(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Path[len("/update/"):]
-	err := loadMod(dbHandle, name)
+	var err error
+	var page int
+	pageStr := r.URL.Query().Get("page")
+	if pageStr == "" {
+		err = loadMod(dbHandle, name)
+		page = 1
+	} else {
+		page, err = strconv.Atoi(pageStr)
+		if err == nil {
+			err = loadModPage(dbHandle, name, page)
+		} else {
+			err = loadMod(dbHandle, name)
+			page = 1
+		}
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/mods/"+name, http.StatusFound)
+	http.Redirect(w, r, fmt.Sprintf("/mods/%s?page=%d", name, page), http.StatusFound)
 }
+
+type specifiedMod struct {
+	Mod            *curseforge.Mod
+	Page, NextPage int
+}
+
 func specificMod(w http.ResponseWriter, r *http.Request) {
-	var mod curseforge.Mod
-	mod.Name = r.URL.Path[len("/mods/"):]
-	rows, err := dbHandle.Query(`SELECT cfid, filename, maturity, version, md5sum FROM releases WHERE mod=$1`, mod.Name)
+	var mod specifiedMod
+	var err error
+	mod.Mod = new(curseforge.Mod)
+	mod.Mod.Name = r.URL.Path[len("/mods/"):]
+	pageStr := r.URL.Query().Get("page")
+	if pageStr == "" {
+		mod.Page = 1
+	} else {
+		mod.Page, err = strconv.Atoi(pageStr)
+		if err != nil {
+			mod.Page = 1
+		}
+	}
+	mod.NextPage = mod.Page + 1
+	rows, err := dbHandle.Query(`SELECT cfid, filename, maturity, version, md5sum FROM releases WHERE mod=$1`, mod.Mod.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -56,9 +89,9 @@ func specificMod(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		mod.Releases = append(mod.Releases, &curseforge.Release{
+		mod.Mod.Releases = append(mod.Mod.Releases, &curseforge.Release{
 			CurseForgeID: cfid,
-			Mod:          &mod,
+			Mod:          mod.Mod,
 			Maturity:     maturity,
 			Version:      version,
 			Filename:     filename,
@@ -78,7 +111,7 @@ func specificMod(w http.ResponseWriter, r *http.Request) {
 
 func root(w http.ResponseWriter, r *http.Request) {
 	var mods modList
-	rows, err := dbHandle.Query(`SELECT name FROM mods;`)
+	rows, err := dbHandle.Query(`SELECT name FROM mods ORDER BY name;`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

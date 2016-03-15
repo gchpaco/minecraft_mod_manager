@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"strconv"
 )
 
 var (
@@ -42,6 +43,16 @@ func (mod *Mod) GetReleasesURL() *url.URL {
 	return trueURL
 }
 
+// GetReleasesPageURL constructs the URL for the Curseforge releases
+// on the given page.
+func (mod *Mod) GetReleasesPageURL(page int) *url.URL {
+	baseURL := mod.GetReleasesURL()
+	q := baseURL.Query()
+	q.Set("page", strconv.Itoa(page))
+	baseURL.RawQuery = q.Encode()
+	return baseURL
+}
+
 // FetchMod retrieves information for the given mod from Curseforge.
 func FetchMod(project string) (*Mod, error) {
 	var mod Mod
@@ -54,8 +65,28 @@ func FetchMod(project string) (*Mod, error) {
 	return &mod, nil
 }
 
-func (mod *Mod) fetchReleases() (releases []*Release, err error) {
-	target := mod.GetReleasesURL()
+// FetchModPage retrieves information for the given mod from
+// Curseforge, reading from page N of the release list.
+func FetchModPage(project string, page int) (*Mod, error) {
+	var mod Mod
+	var err error
+	mod.Name = project
+	mod.Releases, err = mod.fetchReleasesPage(page)
+	if err != nil {
+		return nil, err
+	}
+	return &mod, nil
+}
+
+func (mod *Mod) fetchReleasesPage(page int) ([]*Release, error) {
+	return mod.readReleasesFrom(mod.GetReleasesPageURL(page))
+}
+
+func (mod *Mod) fetchReleases() ([]*Release, error) {
+	return mod.readReleasesFrom(mod.GetReleasesURL())
+}
+
+func (mod *Mod) readReleasesFrom(target *url.URL) (releases []*Release, err error) {
 	resp, err := http.Get(target.String())
 	if err != nil {
 		return nil, err

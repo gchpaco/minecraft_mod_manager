@@ -167,6 +167,15 @@ func loadMod(db *sql.DB, name string) error {
 	return updateForMod(db, mod)
 }
 
+func loadModPage(db *sql.DB, name string, page int) error {
+	mod, err := curseforge.FetchModPage(name, page)
+	if err != nil {
+		return err
+	}
+
+	return updateForMod(db, mod)
+}
+
 func updateForMod(db *sql.DB, mod *curseforge.Mod) error {
 	var err error
 	_, err = db.Exec(`INSERT OR IGNORE INTO mods(name) VALUES ($1);`, mod.Name)
