@@ -13,6 +13,13 @@ import (
 var (
 	InvalidURLError = errors.New("Don't understand non curseforge URLs")
 	BadParseError   = errors.New("Couldn't understand curseforge page")
+
+	eachFilePath = xmlpath.MustCompile("//tr[contains(@class,\"project-file-list-item\")]")
+	maturityPath = xmlpath.MustCompile("./td[contains(@class,\"project-file-release-type\")]/div/@title")
+	filenamePath = xmlpath.MustCompile("./td[contains(@class,\"project-file-name\")]//a[contains(@class,\"overflow-tip\")]/text()")
+	downloadPath = xmlpath.MustCompile("./td[contains(@class,\"project-file-name\")]//a[contains(@class,\"overflow-tip\")]/@href")
+	versionPath  = xmlpath.MustCompile("./td[contains(@class,\"project-file-game-version\")]//span[contains(@class,\"version-label\")]/text()")
+	md5path      = xmlpath.MustCompile("//div[contains(@class,\"details-info\")]//span[contains(@class,\"md5\")]/text()")
 )
 
 func (mod *Mod) GetProjectURL() *url.URL {
@@ -54,29 +61,25 @@ func (mod *Mod) fetchReleases() (releases []*Release, err error) {
 		return nil, err
 	}
 
-	eachFile := xmlpath.MustCompile("//tr[contains(@class,\"project-file-list-item\")]")
-	iter := eachFile.Iter(doc)
+	iter := eachFilePath.Iter(doc)
 	for iter.Next() {
 		file := iter.Node()
 
 		var release Release
 		var ok bool
 		release.Mod = mod
-		maturity := xmlpath.MustCompile("./td[contains(@class,\"project-file-release-type\")]/div/@title")
-		release.Maturity, ok = maturity.String(file)
+		release.Maturity, ok = maturityPath.String(file)
 		if !ok {
 			err = BadParseError
 			return
 		}
 
-		filenamePath := xmlpath.MustCompile("./td[contains(@class,\"project-file-name\")]//a[contains(@class,\"overflow-tip\")]/text()")
 		release.Filename, ok = filenamePath.String(file)
 		if !ok {
 			err = BadParseError
 			return
 		}
 
-		downloadPath := xmlpath.MustCompile("./td[contains(@class,\"project-file-name\")]//a[contains(@class,\"overflow-tip\")]/@href")
 		partial, ok := downloadPath.String(file)
 		if !ok {
 			err = BadParseError
@@ -95,7 +98,6 @@ func (mod *Mod) fetchReleases() (releases []*Release, err error) {
 			return
 		}
 
-		versionPath := xmlpath.MustCompile("./td[contains(@class,\"project-file-game-version\")]//span[contains(@class,\"version-label\")]/text()")
 		release.Version, ok = versionPath.String(file)
 		if !ok {
 			err = BadParseError
@@ -137,7 +139,6 @@ func (release *Release) FetchMD5Sum() error {
 		return err
 	}
 
-	md5path := xmlpath.MustCompile("//div[contains(@class,\"details-info\")]//span[contains(@class,\"md5\")]/text()")
 	md5, ok := md5path.String(doc)
 	if !ok {
 		return BadParseError
