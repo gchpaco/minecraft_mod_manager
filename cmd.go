@@ -1,12 +1,17 @@
 package main
 
 import (
+	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
 	"flag"
 	"github.com/gchpaco/minecraft_mod_manager/curseforge"
 	_ "github.com/mattn/go-sqlite3"
+	"io"
+	"io/ioutil"
 	"log"
+	"os"
+	"path"
 )
 
 var dbFile = flag.String("db", "db.sqlite", "database to reference against")
@@ -25,32 +30,94 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var mods []string
-	mods = flag.Args()
-
-	rows, err := db.Query(`SELECT name FROM mods;`)
-	if err != nil {
-		log.Fatal(err)
+	if flag.NArg() < 1 {
+		log.Fatal("Need a command.")
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var mod string
-		if err := rows.Scan(&mod); err != nil {
-			log.Println(err)
-			continue
+
+	switch flag.Arg(0) {
+	case "add":
+		for _, mod := range flag.Args()[1:] {
+			log.Printf("Adding mod: %s\n", mod)
+			err = loadMod(db, mod)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 		}
-		mods = append(mods, mod)
-	}
-	if err := rows.Err(); err != nil {
-		log.Fatal(err)
-	}
+	case "update":
+		var mods []string
 
-	for _, mod := range mods {
-		log.Printf("Updating mod: %s\n", mod)
-		err = loadMod(db, mod)
+		rows, err := db.Query(`SELECT name FROM mods;`)
 		if err != nil {
-			log.Println(err)
-			continue
+			log.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var mod string
+			if err := rows.Scan(&mod); err != nil {
+				log.Println(err)
+				continue
+			}
+			mods = append(mods, mod)
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+		}
+
+		for _, mod := range mods {
+			log.Printf("Updating mod: %s\n", mod)
+			err = loadMod(db, mod)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+		}
+	case "scan":
+		for _, directory := range flag.Args()[1:] {
+			log.Println("Scanning", directory)
+
+			files, err := ioutil.ReadDir(directory)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			for _, file := range files {
+				// Mac nonsense
+				if file.Name() == ".DS_Store" {
+					continue
+				}
+				if !file.IsDir() {
+					sum, err := md5sum(path.Join(directory, file.Name()))
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					rows, err := db.Query(`SELECT cfid, mod, filename FROM releases WHERE md5sum=$1`, hex.EncodeToString(sum))
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					defer rows.Close()
+
+					matched := false
+					for rows.Next() {
+						var cfid, mod, filename string
+						if err := rows.Scan(&cfid, &mod, &filename); err != nil {
+							log.Println(err)
+							break
+						}
+						matched = true
+					}
+					if err := rows.Err(); err != nil {
+						log.Println(err)
+						continue
+					}
+					if !matched {
+						log.Println("No match for", file.Name())
+					}
+				}
+			}
 		}
 	}
 }
@@ -66,6 +133,27 @@ CREATE INDEX IF NOT EXISTS releases_mod ON releases(mod);
 		return err
 	}
 	return nil
+}
+
+func md5sum(filename string) ([]byte, error) {
+	hash := md5.New()
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	data := make([]byte, 128)
+	for {
+		count, err := file.Read(data)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		hash.Write(data[:count])
+	}
+	return hash.Sum(nil), nil
 }
 
 func loadMod(db *sql.DB, name string) error {
