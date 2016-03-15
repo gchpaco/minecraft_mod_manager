@@ -72,7 +72,7 @@ func specificMod(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	mod.NextPage = mod.Page + 1
-	rows, err := dbHandle.Query(`SELECT cfid, filename, maturity, version, md5sum FROM releases WHERE mod=$1 ORDER BY date`, mod.Mod.Name)
+	rows, err := dbHandle.Query(`SELECT cfid, filename, maturity, version, md5sum FROM releases WHERE mod=$1 ORDER BY date DESC`, mod.Mod.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

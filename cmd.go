@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"time"
 )
 
 var dbFile = flag.String("db", "db.sqlite", "database to reference against")
@@ -117,6 +118,99 @@ func main() {
 					}
 					if !matched {
 						log.Println("No match for", file.Name())
+					}
+				}
+			}
+		}
+	case "find-updates":
+		// assume 1.7.10 for now.
+		bestVersion := make(map[string]*curseforge.Release)
+		rows, err := db.Query(`
+SELECT mods.name, releases.cfid, releases.maturity, releases.filename, releases.version, releases.date, releases.md5sum
+FROM mods, releases
+WHERE releases.cfid=(SELECT releases.cfid FROM releases WHERE releases.mod=mods.name AND releases.version='1.7.10' ORDER BY date DESC LIMIT 1);
+`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var modname, cfid, maturity, filename, version, datestr, md5sum sql.NullString
+			if err := rows.Scan(&modname, &cfid, &maturity, &filename, &version, &datestr, &md5sum); err != nil {
+				log.Println(err)
+				continue
+			}
+			if !modname.Valid || !cfid.Valid || !filename.Valid {
+				log.Println("Weird nulls")
+				continue
+			}
+			date, err := time.Parse("2006-01-02 15:04:05-07:00", datestr.String)
+			if err != nil {
+				log.Println(modname.String, err)
+				continue
+			}
+			md5, err := hex.DecodeString(md5sum.String)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+			mod := &curseforge.Mod{Name: modname.String}
+			release := &curseforge.Release{
+				Mod:          mod,
+				CurseForgeID: cfid.String,
+				Maturity:     maturity.String,
+				Filename:     filename.String,
+				Version:      version.String,
+				DateUploaded: date,
+				MD5sum:       md5,
+			}
+			bestVersion[modname.String] = release
+		}
+		if err := rows.Err(); err != nil {
+			log.Fatal(err)
+		}
+
+		for _, directory := range flag.Args()[1:] {
+			log.Println("Scanning", directory)
+
+			files, err := ioutil.ReadDir(directory)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			for _, file := range files {
+				// Mac nonsense
+				if file.Name() == ".DS_Store" {
+					continue
+				}
+				if !file.IsDir() {
+					sum, err := md5sum(path.Join(directory, file.Name()))
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					rows, err := db.Query(`SELECT cfid, mod, filename FROM releases WHERE md5sum=$1`, hex.EncodeToString(sum))
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					defer rows.Close()
+
+					for rows.Next() {
+						var cfid, mod, filename string
+						if err := rows.Scan(&cfid, &mod, &filename); err != nil {
+							log.Println(err)
+							break
+						}
+						best, ok := bestVersion[mod]
+						if ok && cfid != best.CurseForgeID {
+							log.Println("Better version of", file.Name(), "available:", best.Filename, bestVersion[mod].GetReleaseURL())
+						}
+					}
+					if err := rows.Err(); err != nil {
+						log.Println(err)
+						continue
 					}
 				}
 			}
