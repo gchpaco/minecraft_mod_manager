@@ -25,15 +25,29 @@ func main() {
 		log.Fatal(err)
 	}
 
-	for _, name := range flag.Args() {
-		mod, err := curseforge.FetchMod(name)
-		if err != nil {
+	var mods []string
+	mods = flag.Args()
+
+	rows, err := db.Query(`SELECT name FROM mods;`)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var mod string
+		if err := rows.Scan(&mod); err != nil {
 			log.Println(err)
 			continue
 		}
+		mods = append(mods, mod)
+	}
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
 
-		log.Printf("Mod: %s\n", mod.Name)
-		err = updateForMod(db, mod)
+	for _, mod := range mods {
+		log.Printf("Updating mod: %s\n", mod)
+		err = loadMod(db, mod)
 		if err != nil {
 			log.Println(err)
 			continue
@@ -52,6 +66,15 @@ CREATE INDEX IF NOT EXISTS releases_mod ON releases(mod);
 		return err
 	}
 	return nil
+}
+
+func loadMod(db *sql.DB, name string) error {
+	mod, err := curseforge.FetchMod(name)
+	if err != nil {
+		return err
+	}
+
+	return updateForMod(db, mod)
 }
 
 func updateForMod(db *sql.DB, mod *curseforge.Mod) error {
