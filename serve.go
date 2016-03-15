@@ -13,7 +13,7 @@ import (
 
 var listenPort = flag.Int64("port", 8080, "port to listen on")
 var dbHandle *sql.DB
-var templates = template.Must(template.ParseFiles("root.html", "mod.html"))
+var templates = template.Must(template.ParseFiles("html/root.html", "html/mod.html"))
 
 func serveHTTP(db *sql.DB) {
 	dbHandle = db

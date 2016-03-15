@@ -1,12 +1,14 @@
 <html>
   <head>
-<title>{{.Name}} Details</title>
+<title>{{.Mod.Name}} Details</title>
 </head>
 <body>
-<h1>{{.Name}} Details</h1>
+<h1>{{.Mod.Name}} Details</h1>
 
 <a href="/">Up</a> |
-<a href="/update/{{.Name}}">Update</a>
+<a href="/update/{{.Mod.Name}}">Update</a> |
+<a href="/update/{{.Mod.Name}}?page={{.NextPage}}">More</a> |
+<a href="{{.Mod.GetProjectURL.String}}">On CurseForge</a>
 
 <table>
   <tr>
@@ -16,7 +18,7 @@
     <th>MD5</th>
     <th>Download URL</th>
   </tr>
-{{range $release := .Releases}}
+{{range $release := .Mod.Releases}}
   <tr>
     <td>{{$release.Filename}}</td>
     <td>{{$release.Maturity}}</td>
