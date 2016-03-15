@@ -11,8 +11,10 @@ import (
 )
 
 var (
-	InvalidURLError = errors.New("Don't understand non curseforge URLs")
-	BadParseError   = errors.New("Couldn't understand curseforge page")
+	// ErrBadParse is triggered if there is some error parsing the
+	// Curseforge results.  This is difficult to avoid as we are
+	// forced to screen scrape.
+	ErrBadParse = errors.New("Couldn't understand curseforge page")
 
 	eachFilePath = xmlpath.MustCompile("//tr[contains(@class,\"project-file-list-item\")]")
 	maturityPath = xmlpath.MustCompile("./td[contains(@class,\"project-file-release-type\")]/div/@title")
@@ -22,6 +24,7 @@ var (
 	md5path      = xmlpath.MustCompile("//div[contains(@class,\"details-info\")]//span[contains(@class,\"md5\")]/text()")
 )
 
+// GetProjectURL constructs the URL for the Curseforge project itself.
 func (mod *Mod) GetProjectURL() *url.URL {
 	trueURL := new(url.URL)
 	trueURL.Scheme = "https"
@@ -30,6 +33,7 @@ func (mod *Mod) GetProjectURL() *url.URL {
 	return trueURL
 }
 
+// GetReleasesURL constructs the URL for the Curseforge releases page.
 func (mod *Mod) GetReleasesURL() *url.URL {
 	trueURL := new(url.URL)
 	trueURL.Scheme = "https"
@@ -38,6 +42,7 @@ func (mod *Mod) GetReleasesURL() *url.URL {
 	return trueURL
 }
 
+// FetchMod retrieves information for the given mod from Curseforge.
 func FetchMod(project string) (*Mod, error) {
 	var mod Mod
 	var err error
@@ -70,19 +75,19 @@ func (mod *Mod) fetchReleases() (releases []*Release, err error) {
 		release.Mod = mod
 		release.Maturity, ok = maturityPath.String(file)
 		if !ok {
-			err = BadParseError
+			err = ErrBadParse
 			return
 		}
 
 		release.Filename, ok = filenamePath.String(file)
 		if !ok {
-			err = BadParseError
+			err = ErrBadParse
 			return
 		}
 
 		partial, ok := downloadPath.String(file)
 		if !ok {
-			err = BadParseError
+			err = ErrBadParse
 			return
 		}
 
@@ -100,7 +105,7 @@ func (mod *Mod) fetchReleases() (releases []*Release, err error) {
 
 		release.Version, ok = versionPath.String(file)
 		if !ok {
-			err = BadParseError
+			err = ErrBadParse
 			return
 		}
 
@@ -114,12 +119,13 @@ func extractCFID(urlFragment string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return "", BadParseError
+		return "", ErrBadParse
 	}
 
 	return path.Base(urlFragment), nil
 }
 
+// GetReleaseURL returns a URL for the release details page on Curseforge.
 func (release *Release) GetReleaseURL() *url.URL {
 	trueURL := new(url.URL)
 	trueURL.Scheme = "https"
@@ -128,6 +134,8 @@ func (release *Release) GetReleaseURL() *url.URL {
 	return trueURL
 }
 
+// FetchMD5Sum fills in the release's MD5sum field.  Since this
+// requires a separate fetch, it is not done automatically.
 func (release *Release) FetchMD5Sum() error {
 	resp, err := http.Get(release.GetReleaseURL().String())
 	if err != nil {
@@ -141,7 +149,7 @@ func (release *Release) FetchMD5Sum() error {
 
 	md5, ok := md5path.String(doc)
 	if !ok {
-		return BadParseError
+		return ErrBadParse
 	}
 	release.MD5sum, err = hex.DecodeString(md5)
 	if err != nil {
