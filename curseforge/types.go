@@ -1,6 +1,7 @@
 package curseforge
 
 import "net/url"
+import "time"
 
 // Mod is a capsule description of a mod on CurseForge.
 type Mod struct {
@@ -14,5 +15,6 @@ type Release struct {
 	Maturity, Filename, Version string
 	CurseForgeID                string
 	DownloadURL                 *url.URL
+	DateUploaded                time.Time
 	MD5sum                      []byte
 }

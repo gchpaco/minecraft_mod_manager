@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"time"
 )
 
 var (
@@ -19,6 +20,7 @@ var (
 
 	eachFilePath = xmlpath.MustCompile("//tr[contains(@class,\"project-file-list-item\")]")
 	maturityPath = xmlpath.MustCompile("./td[contains(@class,\"project-file-release-type\")]/div/@title")
+	datePath     = xmlpath.MustCompile("./td[contains(@class,\"project-file-date-uploaded\")]/abbr/@data-epoch")
 	filenamePath = xmlpath.MustCompile("./td[contains(@class,\"project-file-name\")]//a[contains(@class,\"overflow-tip\")]/text()")
 	downloadPath = xmlpath.MustCompile("./td[contains(@class,\"project-file-name\")]//a[contains(@class,\"overflow-tip\")]/@href")
 	versionPath  = xmlpath.MustCompile("./td[contains(@class,\"project-file-game-version\")]//span[contains(@class,\"version-label\")]/text()")
@@ -139,6 +141,18 @@ func (mod *Mod) readReleasesFrom(target *url.URL) (releases []*Release, err erro
 			err = ErrBadParse
 			return
 		}
+
+		date, ok := datePath.String(file)
+		if !ok {
+			err = ErrBadParse
+			return
+		}
+		epochSecs, e := strconv.ParseInt(date, 10, 64)
+		if e != nil {
+			err = ErrBadParse
+			return
+		}
+		release.DateUploaded = time.Unix(epochSecs, 0)
 
 		releases = append(releases, &release)
 	}

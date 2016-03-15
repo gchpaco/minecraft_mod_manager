@@ -127,7 +127,9 @@ func main() {
 func setupSchema(db *sql.DB) error {
 	_, err := db.Exec(`
 CREATE TABLE IF NOT EXISTS mods(name TEXT PRIMARY KEY);
-CREATE TABLE IF NOT EXISTS releases(cfid INT PRIMARY KEY, mod TEXT, maturity, filename TEXT, version TEXT, md5sum TEXT);
+CREATE TABLE IF NOT EXISTS releases(cfid INT PRIMARY KEY, mod TEXT, maturity, filename TEXT, version TEXT, date, md5sum TEXT);
+CREATE INDEX IF NOT EXISTS releases_date ON releases(date);
+CREATE INDEX IF NOT EXISTS releases_date_version ON releases(date, version);
 CREATE INDEX IF NOT EXISTS releases_md5sum ON releases(md5sum);
 CREATE INDEX IF NOT EXISTS releases_mod ON releases(mod);
 `)
@@ -200,11 +202,11 @@ func updateForMod(db *sql.DB, mod *curseforge.Mod) error {
 			}
 			_, err = tx.Exec(`
 INSERT INTO
-releases(cfid, mod, maturity, filename, version, md5sum)
-VALUES ($1, $2, $3, $4, $5, $6);
+releases(cfid, mod, maturity, filename, version, date, md5sum)
+VALUES ($1, $2, $3, $4, $5, $6, $7);
 `,
 				release.CurseForgeID, mod.Name, release.Maturity,
-				release.Filename, release.Version,
+				release.Filename, release.Version, release.DateUploaded,
 				hex.EncodeToString(release.MD5sum))
 			if err != nil {
 				return err
@@ -212,11 +214,15 @@ VALUES ($1, $2, $3, $4, $5, $6);
 		} else {
 			_, err := tx.Exec(`
 UPDATE releases SET
-mod=$2, maturity=$3, filename=$4, version=$5
-WHERE cfid=$1;
+mod=$1, maturity=$2, filename=$3, version=$4, date=$5
+WHERE cfid=$6;
 `,
-				release.CurseForgeID, mod.Name, release.Maturity,
-				release.Filename, release.Version)
+				mod.Name, release.Maturity,
+				release.Filename, release.Version, release.DateUploaded,
+				release.CurseForgeID)
+			if err != nil {
+				return err
+			}
 			var md5 sql.NullString
 			result := db.QueryRow(`SELECT md5sum FROM releases WHERE cfid=$1;`, release.CurseForgeID)
 			err = result.Scan(&md5)
