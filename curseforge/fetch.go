@@ -134,6 +134,11 @@ func (release *Release) GetReleaseURL() *url.URL {
 	return trueURL
 }
 
+// MD5 formats the release's MD5sum field as a hex string.
+func (release *Release) MD5() string {
+	return hex.EncodeToString(release.MD5sum)
+}
+
 // FetchMD5Sum fills in the release's MD5sum field.  Since this
 // requires a separate fetch, it is not done automatically.
 func (release *Release) FetchMD5Sum() error {

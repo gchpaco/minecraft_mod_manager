@@ -1,0 +1,34 @@
+<html>
+  <head>
+<title>{{.Name}} Details</title>
+</head>
+<body>
+<h1>{{.Name}} Details</h1>
+
+<a href="/">Up</a> |
+<a href="/update/{{.Name}}">Update</a>
+
+<table>
+  <tr>
+    <th>Filename</th>
+    <th>Maturity</th>
+    <th>Minecraft Version</th>
+    <th>MD5</th>
+    <th>Download URL</th>
+  </tr>
+{{range $release := .Releases}}
+  <tr>
+    <td>{{$release.Filename}}</td>
+    <td>{{$release.Maturity}}</td>
+    <td>{{$release.Version}}</td>
+    <td>{{$release.MD5}}</td>
+    <td><a href="{{$release.GetReleaseURL}}">Download</a></td>
+  </tr>
+{{end}}
+</table>
+
+<address>
+<a href="mailto:graham.hughes@citrix.com">Graham Hughes</a>
+</address>
+</body>
+</html>

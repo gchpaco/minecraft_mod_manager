@@ -1,0 +1,17 @@
+<html>
+  <head>
+<title>Minecraft Mods</title>
+</head>
+<body>
+<h1>Minecraft Mods</h1>
+
+<ul>
+{{range $mod := .Mods}}
+<li><a href="/mods/{{$mod.Name}}">{{$mod.Name}}</a></li>
+{{end}}
+</ul>
+<address>
+<a href="mailto:graham@sigwinch.org">Graham Hughes</a>
+</address>
+</body>
+</html>

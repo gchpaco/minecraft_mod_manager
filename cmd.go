@@ -72,6 +72,8 @@ func main() {
 				continue
 			}
 		}
+	case "serve":
+		serveHTTP(db)
 	case "scan":
 		for _, directory := range flag.Args()[1:] {
 			log.Println("Scanning", directory)
@@ -203,7 +205,9 @@ VALUES ($1, $2, $3, $4, $5, $6);
 UPDATE releases SET
 mod=$2, maturity=$3, filename=$4, version=$5
 WHERE cfid=$1;
-`)
+`,
+				release.CurseForgeID, mod.Name, release.Maturity,
+				release.Filename, release.Version)
 			var md5 sql.NullString
 			result := db.QueryRow(`SELECT md5sum FROM releases WHERE cfid=$1;`, release.CurseForgeID)
 			err = result.Scan(&md5)
@@ -216,7 +220,7 @@ WHERE cfid=$1;
 					return err
 				}
 				_, err = db.Exec(`UPDATE releases SET md5sum=$2 WHERE cfid=$1`,
-					release.CurseForgeID, hex.EncodeToString(release.MD5sum))
+					release.CurseForgeID, release.MD5())
 				if err != nil {
 					return err
 				}
