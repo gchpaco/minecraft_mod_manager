@@ -1,11 +1,11 @@
 package main
 
 import (
-	"database/sql"
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"github.com/gchpaco/minecraft_mod_manager/curseforge"
+	"github.com/gchpaco/minecraft_mod_manager/types"
+	"github.com/jinzhu/gorm"
 	"html/template"
 	"log"
 	"net/http"
@@ -13,11 +13,11 @@ import (
 )
 
 var listenPort = flag.Int64("port", 8080, "port to listen on")
-var dbHandle *sql.DB
+var db *gorm.DB
 var templates = template.Must(template.ParseFiles("html/root.html", "html/mod.html"))
 
-func serveHTTP(db *sql.DB) {
-	dbHandle = db
+func serveHTTP(dbHandle *gorm.DB) {
+	db = dbHandle
 	http.HandleFunc("/mods/", specificMod)
 	http.HandleFunc("/update/", updateMod)
 	http.HandleFunc("/", root)
@@ -25,23 +25,29 @@ func serveHTTP(db *sql.DB) {
 }
 
 type modList struct {
-	Mods []*curseforge.Mod
+	Mods []types.Mod
 }
 
 func updateMod(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Path[len("/update/"):]
+	var mod types.Mod
+	db.First(&mod, types.Mod{Name: name})
+	if mod.Name != name {
+		http.Error(w, "Don't know anything about "+name, http.StatusNotFound)
+		return
+	}
 	var err error
 	var page int
 	pageStr := r.URL.Query().Get("page")
 	if pageStr == "" {
-		err = loadMod(dbHandle, name)
+		err = curseforge.UpdateMod(db, &mod)
 		page = 1
 	} else {
 		page, err = strconv.Atoi(pageStr)
 		if err == nil {
-			err = loadModPage(dbHandle, name, page)
+			err = curseforge.UpdateModPage(db, &mod, page)
 		} else {
-			err = loadMod(dbHandle, name)
+			err = curseforge.UpdateMod(db, &mod)
 			page = 1
 		}
 	}
@@ -53,57 +59,31 @@ func updateMod(w http.ResponseWriter, r *http.Request) {
 }
 
 type specifiedMod struct {
-	Mod            *curseforge.Mod
+	Mod            *types.Mod
 	Page, NextPage int
 }
 
 func specificMod(w http.ResponseWriter, r *http.Request) {
-	var mod specifiedMod
+	var mod types.Mod
+	db.First(&mod, types.Mod{Name: r.URL.Path[len("/mods/"):]})
+	db.Model(&mod).Related(&mod.Releases)
+
+	var specifiedMod specifiedMod
 	var err error
-	mod.Mod = new(curseforge.Mod)
-	mod.Mod.Name = r.URL.Path[len("/mods/"):]
+
+	specifiedMod.Mod = &mod
 	pageStr := r.URL.Query().Get("page")
 	if pageStr == "" {
-		mod.Page = 1
+		specifiedMod.Page = 1
 	} else {
-		mod.Page, err = strconv.Atoi(pageStr)
+		specifiedMod.Page, err = strconv.Atoi(pageStr)
 		if err != nil {
-			mod.Page = 1
+			specifiedMod.Page = 1
 		}
 	}
-	mod.NextPage = mod.Page + 1
-	rows, err := dbHandle.Query(`SELECT cfid, filename, maturity, version, md5sum FROM releases WHERE mod=$1 ORDER BY date DESC`, mod.Mod.Name)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var cfid, filename, maturity, version, md5sum string
-		if err := rows.Scan(&cfid, &filename, &maturity, &version, &md5sum); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		md5, err := hex.DecodeString(md5sum)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		mod.Mod.Releases = append(mod.Mod.Releases, &curseforge.Release{
-			CurseForgeID: cfid,
-			Mod:          mod.Mod,
-			Maturity:     maturity,
-			Version:      version,
-			Filename:     filename,
-			MD5sum:       md5,
-		})
-	}
-	if err := rows.Err(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	specifiedMod.NextPage = specifiedMod.Page + 1
 
-	err = templates.ExecuteTemplate(w, "mod.html", mod)
+	err = templates.ExecuteTemplate(w, "mod.html", specifiedMod)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -111,26 +91,9 @@ func specificMod(w http.ResponseWriter, r *http.Request) {
 
 func root(w http.ResponseWriter, r *http.Request) {
 	var mods modList
-	rows, err := dbHandle.Query(`SELECT name FROM mods ORDER BY name;`)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var mod string
-		if err := rows.Scan(&mod); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		mods.Mods = append(mods.Mods, &curseforge.Mod{Name: mod})
-	}
-	if err := rows.Err(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	db.Find(&mods.Mods)
 
-	err = templates.ExecuteTemplate(w, "root.html", mods)
+	err := templates.ExecuteTemplate(w, "root.html", mods)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
