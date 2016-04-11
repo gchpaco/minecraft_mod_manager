@@ -247,6 +247,7 @@ WHERE best.id=(SELECT r.id FROM releases AS r
 					if ok && best.ID != best.BestID {
 						var bestRelease types.Release
 						db.First(&bestRelease, best.BestID)
+						db.Model(&bestRelease).Related(&bestRelease.Mod)
 						log.Println("Better version of", file.Name(), "available:", best.Filename, bestRelease.GetReleaseURL())
 					}
 				}
