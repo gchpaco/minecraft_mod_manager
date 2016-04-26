@@ -14,7 +14,6 @@ type Mod struct {
 type Release struct {
 	gorm.Model
 	ModID                       uint `gorm:"index"`
-	Mod                         Mod
 	Maturity, Filename, Version string
 	CurseForgeID                string `gorm:"column:curseforge_id"`
 	DateUploaded                time.Time

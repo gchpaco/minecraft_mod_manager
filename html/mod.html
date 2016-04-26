@@ -4,7 +4,7 @@
 </head>
 <body>
 <h1>{{.Mod.Name}} Details</h1>
-
+{{$mod := .Mod}}
 <a href="/">Up</a> |
 <a href="/update/{{.Mod.Name}}">Update</a> |
 <a href="/update/{{.Mod.Name}}?page={{.NextPage}}">More</a> |
@@ -24,7 +24,7 @@
     <td>{{$release.Maturity}}</td>
     <td>{{$release.Version}}</td>
     <td>{{$release.MD5}}</td>
-    <td><a href="{{$release.GetReleaseURL}}">Download</a></td>
+    <td><a href="{{$release.GetReleaseURL $mod}}">Download</a></td>
   </tr>
 {{end}}
 </table>

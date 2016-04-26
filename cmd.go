@@ -246,9 +246,10 @@ WHERE best.id=(SELECT r.id FROM releases AS r
 					best, ok := bestVersion[hex.EncodeToString(sum)]
 					if ok && best.ID != best.BestID {
 						var bestRelease types.Release
+						var mod types.Mod
 						db.First(&bestRelease, best.BestID)
-						db.Model(&bestRelease).Related(&bestRelease.Mod)
-						log.Println("Better version of", file.Name(), "available:", best.Filename, bestRelease.GetReleaseURL())
+						db.Model(&bestRelease).Related(&mod)
+						log.Println("Newer version of", file.Name(), "available:", best.Filename, bestRelease.GetReleaseURL(&mod))
 					}
 				}
 			}

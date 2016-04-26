@@ -36,11 +36,11 @@ func (mod *Mod) GetReleasesPageURL(page int) *url.URL {
 }
 
 // GetReleaseURL returns a URL for the release details page on Curseforge.
-func (release *Release) GetReleaseURL() *url.URL {
+func (release *Release) GetReleaseURL(mod *Mod) *url.URL {
 	trueURL := new(url.URL)
 	trueURL.Scheme = "https"
 	trueURL.Host = "minecraft.curseforge.com"
-	trueURL.Path = fmt.Sprintf("/projects/%s/files/%s", release.Mod.Name, release.CurseForgeID)
+	trueURL.Path = fmt.Sprintf("/projects/%s/files/%s", mod.Name, release.CurseForgeID)
 	return trueURL
 }
 
